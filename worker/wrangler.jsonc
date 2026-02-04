@@ -1,0 +1,82 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-messenger-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-09-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    {
+      "binding": "CF_MESSENGER_SESSIONS",
+      "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "preview_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CHAT_ROOM",
+        "class_name": "ChatRoom",
+      },
+      {
+        "name": "PRESENCE_ROOM",
+        "class_name": "PresenceRoom",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["ChatRoom"],
+    },
+    {
+      "tag": "v2",
+      "new_classes": ["PresenceRoom"],
+    },
+  ],
+  "ai": {
+    "binding": "AI",
+  },
+  "vars": {
+    "AI_API_BASE": "http://127.0.0.1:1234/v1",
+    "AI_MODEL": "@cf/meta/llama-3.2-1b-instruct",
+    // Local development: Use .dev.vars for secrets like TURNSTILE_SECRET_KEY.
+    // NOTE: For testing, you can use the Cloudflare demo key: 1x0000000000000000000000000000000AA
+    "TURNSTILE_SECRET_KEY": "",
+  },
+  "observability": {
+    "enabled": true,
+  },
+  "env": {
+    "production": {
+      "name": "cf-messenger-api-prod",
+      "kv_namespaces": [
+        {
+          "binding": "CF_MESSENGER_SESSIONS",
+          "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "CHAT_ROOM",
+            "class_name": "ChatRoom",
+          },
+          {
+            "name": "PRESENCE_ROOM",
+            "class_name": "PresenceRoom",
+          },
+        ],
+      },
+      "ai": {
+        "binding": "AI",
+      },
+      "vars": {
+        "AI_API_BASE": "",
+        "AI_MODEL": "@cf/meta/llama-3.2-1b-instruct",
+        // SECURITY NOTE: Secrets are not stored in this file.
+        // Run: wrangler secret put TURNSTILE_SECRET_KEY --env production
+        "TURNSTILE_SECRET_KEY": "",
+      },
+    },
+  },
+}

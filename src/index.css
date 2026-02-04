@@ -1,0 +1,307 @@
+@import "tailwindcss";
+
+/* Custom font declarations */
+@font-face {
+  font-family: "Verdana";
+  src:
+    url("/fonts/verdana.woff2") format("woff2"),
+    url("/fonts/verdana.woff") format("woff"),
+    url("/fonts/verdana.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  /* Colors */
+  --color-msn-blue: #0066cc;
+  --color-msn-light-blue: #e6f2ff;
+  --color-msn-bg: #ece9d8;
+  --color-msn-online: #00cc00;
+  --color-msn-away: #ff9900;
+  --color-msn-busy: #cc0000;
+
+  /* Windows XP UI Colors */
+  --color-xp-desktop-blue: #3a6ea5;
+  --color-xp-blue-dark: #245edb;
+  --color-xp-blue-light: #3f8cf3;
+  --color-xp-blue-deep: #0c59b9;
+  --color-xp-blue-bright: #139ee9;
+  --color-xp-border-dark: #092e6e;
+  --color-xp-header-grad-end: #255ed5;
+  --color-xp-header-grad-start: #157dec;
+  --color-xp-orange-border: #e57e26;
+  --color-xp-window-bg: #f0f2f5;
+  --color-xp-menu-bg: #f6f6f6;
+  --color-xp-border-silver: #d6d6d6;
+  --color-xp-app-bg: #eff3f7;
+  --color-xp-border-blue: #8e9ebb;
+  --color-chat-sender-me: #6b7280;
+  --color-chat-sender-them: #0000aa;
+  --color-chat-text-me: #1f2937;
+  --color-chat-text-them: #000000;
+  --duration-nudge: 500ms;
+
+  /* Font Families */
+  --font-family-msn: Tahoma, Arial, sans-serif;
+  --font-family-verdana: Verdana, Geneva, sans-serif;
+
+  /* Semantic Font Sizes */
+  --text-msn-micro: 12px;
+  --text-msn-xs: 13px;
+  --text-msn-sm: 14px;
+  --text-msn-base: 15px;
+  --text-msn-lg: 16px;
+  --text-msn-xl: 18px;
+  --text-msn-2xl: 20px;
+  --text-msn-3xl: 22px;
+
+  /* Spacing & Sizes */
+  --spacing-msn-h-taskbar: 30px;
+  --spacing-msn-w-sidebar: 160px;
+  --spacing-msn-w-avatar: 116px;
+  --spacing-msn-avatar-taskbar: 48px;
+
+  /* Icon Sizes */
+  --spacing-msn-icon-xs: 12px;
+  --spacing-msn-icon-sm: 16px;
+  --spacing-msn-icon-taskbar-item: 20px;
+  --spacing-msn-icon-taskbar-tray: 16px;
+  --spacing-msn-icon-start-left: 32px;
+  --spacing-msn-icon-start-right: 24px;
+  --spacing-msn-icon-start-footer: 28px;
+  --spacing-msn-icon-base: 24px;
+  --spacing-msn-icon-lg: 32px;
+  --spacing-msn-icon-xl: 48px;
+
+  /* Start Menu Colors */
+  --color-xp-start-left: #ffffff;
+  --color-xp-start-right: #d3e5fa;
+  --color-xp-start-border: #3151b5;
+  --color-xp-start-header-start: #157dec;
+  --color-xp-start-header-end: #255ed5;
+  --color-xp-start-footer-start: #4281d4;
+  --color-xp-start-footer-end: #1c55b3;
+  --color-xp-start-right-text: #00136b;
+  --color-xp-start-all-programs: #f3f4f9;
+  --color-xp-start-all-programs-hover: #d0d9ef;
+
+  /* Classic Windows Borders/Shadows */
+  --shadow-xp-window:
+    inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf, inset -2px -2px grey,
+    inset 2px 2px #fff;
+  --shadow-xp-taskbar: inset 1px 0px 1px #00a4fb;
+  --shadow-xp-inner: inset 0 10px 10px -10px rgba(255, 255, 255, 0.4);
+}
+
+:root {
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 400;
+
+  color: #000000;
+  background-color: #ece9d8;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Typin
+g indicator animation */
+@keyframes typing-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-typing-pulse {
+  animation: typing-pulse 1.4s infinite;
+}
+
+/* Blinking orange animation for unread messages */
+@keyframes blink-orange {
+  0%,
+  49% {
+    box-shadow:
+      inset -1px -1px #00138c,
+      inset 1px 1px #0831d9,
+      inset -2px -2px #001ea0,
+      inset 2px 2px #166aee,
+      inset -3px -3px #003bda,
+      inset 3px 3px #0855dd;
+  }
+  50%,
+  100% {
+    box-shadow:
+      rgba(216, 102, 12, 1) -1px -1px inset,
+      rgb(216, 102, 12) 1px 1px inset,
+      rgb(216, 102, 12) -2px -2px inset,
+      rgb(216, 102, 12) 2px 2px inset,
+      rgb(216, 102, 12) -3px -3px inset,
+      rgb(216, 102, 12) 3px 3px inset;
+  }
+}
+
+@keyframes blink-orange-title {
+  0%,
+  49% {
+    background: linear-gradient(
+      rgb(0, 88, 238) 0%,
+      rgb(53, 147, 255) 4%,
+      rgb(40, 142, 255) 6%,
+      rgb(18, 125, 255) 8%,
+      rgb(3, 111, 252) 10%,
+      rgb(2, 98, 238) 14%,
+      rgb(0, 87, 229) 20%,
+      rgb(0, 84, 227) 24%,
+      rgb(0, 85, 235) 56%,
+      rgb(0, 91, 245) 66%,
+      rgb(2, 106, 254) 76%,
+      rgb(0, 98, 239) 86%,
+      rgb(0, 82, 214) 92%,
+      rgb(0, 64, 171) 94%,
+      rgb(0, 48, 146) 100%
+    );
+    border-color: rgb(0, 60, 165);
+  }
+  50%,
+  100% {
+    background: linear-gradient(
+      180deg,
+      #d8680c,
+      #d8660c 8%,
+      #d8660c 40%,
+      #d8720c 88%,
+      #d8720c 93%,
+      #d8720c 95%,
+      #d8720c 96%,
+      #d8720c
+    );
+    border-color: #d8660c;
+  }
+}
+
+.animate-blink-orange {
+  animation: blink-orange 1s infinite;
+}
+
+.animate-blink-orange-title {
+  animation: blink-orange-title 1s infinite;
+}
+
+/* Fade in animation for wink overlay */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes nudge-shake {
+  0% {
+    transform: translate(1px, 1px) rotate(0deg);
+  }
+  10% {
+    transform: translate(-1px, -2px) rotate(-1deg);
+  }
+  20% {
+    transform: translate(-3px, 0px) rotate(1deg);
+  }
+  30% {
+    transform: translate(3px, 2px) rotate(0deg);
+  }
+  40% {
+    transform: translate(1px, -1px) rotate(1deg);
+  }
+  50% {
+    transform: translate(-1px, 2px) rotate(-1deg);
+  }
+  60% {
+    transform: translate(-3px, 1px) rotate(0deg);
+  }
+  70% {
+    transform: translate(3px, 1px) rotate(-1deg);
+  }
+  80% {
+    transform: translate(-1px, -1px) rotate(1deg);
+  }
+  90% {
+    transform: translate(1px, 2px) rotate(0deg);
+  }
+  100% {
+    transform: translate(1px, -2px) rotate(-1deg);
+  }
+}
+
+.nudge-shake {
+  animation: nudge-shake 0.5s;
+}
+
+.desktop-icon-reset {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border-radius: 0 !important;
+  padding: 4px !important; /* Keep the p-1 equivalent */
+  margin: 0 !important;
+}
+
+.desktop-icon-reset:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.btn-reset-accessible {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none !important;
+  color: inherit !important;
+  font: inherit !important;
+  text-align: inherit !important;
+  padding: 0;
+  margin: 0;
+}
+
+.btn-reset-accessible:active {
+  transform: none !important;
+}
+
+.title-bar-text {
+  font-size: var(--text-msn-base) !important;
+  font-weight: bold;
+}

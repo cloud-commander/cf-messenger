@@ -1,0 +1,11 @@
+# .gitignore contents
+node_modules/
+.wrangler/
+dist/
+.dev.vars
+.env
+.env.local
+.DS_Store
+worker-configuration.d.ts
+coverage/
+*.log
