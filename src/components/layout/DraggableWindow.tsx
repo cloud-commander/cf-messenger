@@ -73,10 +73,13 @@ export const DraggableWindow = ({
       <div
         ref={nodeRef}
         className={cn(
-          "absolute",
+          "absolute box-border",
           (isMaximized || (isMobile && maximizable)) &&
-            "!fixed !top-0 !left-0 !w-full !h-[calc(100vh-30px)] !transform-none !rounded-none",
-          isMobile && maximizable && "!border-none !shadow-none",
+            "!fixed !top-0 !left-0 !w-full !transform-none !rounded-none",
+          isMaximized && "!h-[calc(100vh-40px)]",
+          isMobile &&
+            maximizable &&
+            "!h-[calc(100vh-100px)] !border-none !shadow-none",
           className,
         )}
         style={{ zIndex: zIndex ?? currentZIndex }}

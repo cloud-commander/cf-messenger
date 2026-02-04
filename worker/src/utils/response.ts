@@ -1,3 +1,6 @@
+const cspHeader =
+  "default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com 'unsafe-inline' 'unsafe-eval' blob:; frame-src * about:; connect-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com blob:; img-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com data:; child-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com blob: about:; style-src 'self' 'unsafe-inline'";
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
@@ -5,6 +8,7 @@ export const corsHeaders = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "Content-Security-Policy": cspHeader,
 };
 
 export function jsonResponse(

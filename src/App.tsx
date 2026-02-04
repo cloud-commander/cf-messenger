@@ -37,7 +37,11 @@ function App() {
       };
 
       if (id === "login-screen") {
-        return { ...commonProps, title: "Login", icon: "/icons/msn.png" };
+        return {
+          ...commonProps,
+          title: "Login",
+          icon: "/icons/ie/msnlogo.png",
+        };
       }
       if (id === "contact-list") {
         return {

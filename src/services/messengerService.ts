@@ -50,15 +50,15 @@ class RealMessengerService implements IMessengerService {
   private currentUser: User | null = null;
   private sessionId: string | null = null;
 
-  private sessions: Map<string, WebSocket> = new Map();
-  private reconnectAttempts: Map<string, number> = new Map();
-  private isConnecting: Map<string, boolean> = new Map(); // Prevent double triggers
+  private sessions: Map<string, WebSocket> = new Map<string, WebSocket>();
+  private reconnectAttempts: Map<string, number> = new Map<string, number>();
+  private isConnecting: Map<string, boolean> = new Map<string, boolean>(); // Prevent double triggers
 
   // Cache messages per room
-  private messageCache: Map<string, Message[]> = new Map();
+  private messageCache: Map<string, Message[]> = new Map<string, Message[]>();
 
   // Heartbeat intervals
-  private pingIntervals: Map<string, number> = new Map();
+  private pingIntervals: Map<string, number> = new Map<string, number>();
 
   // Listeners
   private messageListeners: ((roomId: string, message: Message) => void)[] = [];
@@ -80,9 +80,9 @@ class RealMessengerService implements IMessengerService {
     });
 
     if (!res.ok) {
-      throw new Error(`API Error ${res.status}: ${res.statusText}`);
+      throw new Error(`API Error ${String(res.status)}: ${res.statusText}`);
     }
-    const json = await res.json();
+    const json: unknown = await res.json();
     return json as T;
   }
 
@@ -113,8 +113,8 @@ class RealMessengerService implements IMessengerService {
     this.currentUser = session.user;
     this.sessionId = session.sessionId;
 
-    // Remove self from contacts list if present (avoids "Ghost Self")
-    this.users = this.users.filter((u) => u.id !== this.currentUser!.id);
+    const currentId = this.currentUser.id;
+    this.users = this.users.filter((u) => u.id !== currentId);
     this.emitContactsUpdate();
 
     return this.currentUser;
@@ -134,7 +134,7 @@ class RealMessengerService implements IMessengerService {
       const accounts = await this.fetchApi<User[]>("/auth/accounts");
 
       this.users = this.currentUser
-        ? accounts.filter((u) => u.id !== this.currentUser!.id)
+        ? accounts.filter((u) => u.id !== this.currentUser?.id)
         : accounts;
 
       this.emitContactsUpdate();
@@ -172,7 +172,9 @@ class RealMessengerService implements IMessengerService {
   private emitCurrentUserUpdate() {
     if (this.currentUser) {
       this.currentUserListeners.forEach((l) => {
-        l(this.currentUser!);
+        if (this.currentUser) {
+          l(this.currentUser);
+        }
       });
     }
   }
@@ -190,7 +192,7 @@ class RealMessengerService implements IMessengerService {
 
   // --- Messaging ---
 
-  public connectWebSocket(roomId: string = "general") {
+  public connectWebSocket(roomId = "general") {
     if (this.sessions.has(roomId)) {
       const existing = this.sessions.get(roomId);
       if (
@@ -225,7 +227,7 @@ class RealMessengerService implements IMessengerService {
 
     ws.onmessage = (event) => {
       try {
-        const raw = JSON.parse(event.data);
+        const raw = JSON.parse(event.data as string) as unknown;
         // Validate
         const result = MessageSchema.safeParse(raw);
         if (!result.success) {
@@ -241,7 +243,7 @@ class RealMessengerService implements IMessengerService {
     ws.onclose = () => {
       this.stopPinging(roomId);
       this.isConnecting.set(roomId, false);
-      const attempts = this.reconnectAttempts.get(roomId) || 0;
+      const attempts = this.reconnectAttempts.get(roomId) ?? 0;
 
       // Calculate Backoff: min(30s, 1s * 2^attempts) + Jitter
       const baseDelay = Math.min(30000, 1000 * Math.pow(2, attempts));
@@ -249,7 +251,7 @@ class RealMessengerService implements IMessengerService {
       const delay = baseDelay + jitter;
 
       console.log(
-        `[MSN] Disconnected from ${roomId}. Reconnecting in ${Math.round(delay)}ms... (Attempt ${attempts + 1})`,
+        `[MSN] Disconnected from ${roomId}. Reconnecting in ${String(Math.round(delay))}ms... (Attempt ${String(attempts + 1)})`,
       );
 
       this.reconnectAttempts.set(roomId, attempts + 1);
@@ -260,16 +262,27 @@ class RealMessengerService implements IMessengerService {
     };
   }
 
-  private handleWebSocketMessage(roomId: string, data: any) {
+  private handleWebSocketMessage(
+    roomId: string,
+    data: Message | Record<string, unknown>,
+  ) {
     // Determine type safely
-    const msgType = data.type as string;
-
-    if (msgType === "history" && Array.isArray(data.messages)) {
-      const msgs = (data.messages as Message[]).filter(
-        (m) => m.type === "chat" || m.type === "system",
-      );
+    const msgType = (data as { type: string }).type;
+    if (
+      msgType === "history" &&
+      "messages" in data &&
+      Array.isArray(data.messages)
+    ) {
+      const msgs = (data.messages as Message[])
+        .filter((m) => m.type === "chat" || m.type === "system")
+        .map((m) => ({
+          ...m,
+          timestamp: m.timestamp || Date.now(),
+        }));
       this.messageCache.set(roomId, msgs);
-      msgs.forEach((m) => this.emitMessageUpdate(roomId, m));
+      msgs.forEach((m) => {
+        this.emitMessageUpdate(roomId, m);
+      });
       return;
     }
 
@@ -282,6 +295,10 @@ class RealMessengerService implements IMessengerService {
       msgType === "nudge"
     ) {
       const msg = data as Message;
+      // Ensure timestamp exists for proper sorting
+      if (!msg.timestamp) {
+        msg.timestamp = Date.now();
+      }
       const targetRoomId = msg.roomId || roomId;
 
       if (msg.type === "chat") {
@@ -304,21 +321,21 @@ class RealMessengerService implements IMessengerService {
     let ws = this.sessions.get(roomId);
 
     // If no session exists or not open, try to connect and wait
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (ws?.readyState !== WebSocket.OPEN) {
       this.connectWebSocket(roomId);
       try {
         await this.waitForConnection(roomId);
         ws = this.sessions.get(roomId); // Refresh after wait
-      } catch (e) {
+      } catch {
         throw new Error(`Failed to connect to room: ${roomId}`);
       }
     }
 
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (ws?.readyState !== WebSocket.OPEN) {
       throw new Error(`No active connection to room: ${roomId}`);
     }
 
-    const tempId = `temp_${Date.now()}`;
+    const tempId = `temp_${String(Date.now())}`;
     const msg: Message = {
       id: tempId,
       roomId,
@@ -336,7 +353,7 @@ class RealMessengerService implements IMessengerService {
 
   sendAck(roomId: string, ackId: string, status: "delivered" | "read") {
     const ws = this.sessions.get(roomId);
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "ack", ackId, status }));
     }
   }
@@ -348,7 +365,7 @@ class RealMessengerService implements IMessengerService {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       const ws = this.sessions.get(roomId);
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      if (ws?.readyState === WebSocket.OPEN) {
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -356,10 +373,10 @@ class RealMessengerService implements IMessengerService {
     throw new Error(`Connection timeout for room ${roomId}`);
   }
 
-  async getMessages(roomId: string): Promise<Message[]> {
+  getMessages(roomId: string): Promise<Message[]> {
     // If not connected, connect
     this.connectWebSocket(roomId);
-    return this.messageCache.get(roomId) ?? [];
+    return Promise.resolve(this.messageCache.get(roomId) ?? []);
   }
 
   public onMessageReceived(
@@ -395,15 +412,23 @@ class RealMessengerService implements IMessengerService {
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === "presence_update" || data.type === "presence_join") {
-          this.handlePresenceUpdate({
-            ...data,
-            status: data.status || "online", // Join implies online
-          });
-        } else if (data.type === "presence_full_sync") {
-          if (Array.isArray(data.participants)) {
-            data.participants.forEach(
+        const raw = JSON.parse(event.data as string) as Record<string, unknown>;
+        if (raw.type === "presence_update" || raw.type === "presence_join") {
+          const updateData: {
+            userId: string;
+            status: PresenceStatus;
+            displayName?: string;
+          } = {
+            userId: raw.userId as string,
+            status: (raw.status as PresenceStatus) || "online", // Join implies online
+          };
+          if (raw.displayName) {
+            updateData.displayName = raw.displayName as string;
+          }
+          this.handlePresenceUpdate(updateData);
+        } else if (raw.type === "presence_full_sync") {
+          if (Array.isArray(raw.participants)) {
+            raw.participants.forEach(
               (p: {
                 id: string;
                 status: PresenceStatus;
@@ -417,8 +442,12 @@ class RealMessengerService implements IMessengerService {
               },
             );
           }
-        } else if (data.type === "message_notification" && data.message) {
-          const msg = data.message as Message;
+        } else if (raw.type === "message_notification" && raw.message) {
+          const msg = raw.message as Message;
+          // Ensure timestamp exists for proper sorting (especially for AI bot messages)
+          if (!msg.timestamp) {
+            msg.timestamp = Date.now();
+          }
           const targetRoomId = msg.roomId || "general";
           // Update cache to ensure sync
           const current = this.messageCache.get(targetRoomId) ?? [];
@@ -436,15 +465,17 @@ class RealMessengerService implements IMessengerService {
     ws.onclose = () => {
       this.stopPinging("global_presence");
       this.sessions.delete("global_presence");
-      const attempts = this.reconnectAttempts.get("global_presence") || 0;
+      const attempts = this.reconnectAttempts.get("global_presence") ?? 0;
       const delay = Math.min(30000, 1000 * Math.pow(2, attempts));
 
       console.log(
-        `[MSN] Global Presence disconnected. Reconnecting in ${delay}ms...`,
+        `[MSN] Global Presence disconnected. Reconnecting in ${String(delay)}ms...`,
       );
       this.reconnectAttempts.set("global_presence", attempts + 1);
 
-      setTimeout(() => this.connectGlobalPresence(), delay);
+      setTimeout(() => {
+        this.connectGlobalPresence();
+      }, delay);
     };
   }
 
@@ -461,16 +492,16 @@ class RealMessengerService implements IMessengerService {
       newUsers[existingIndex] = {
         ...newUsers[existingIndex],
         status: data.status,
-        displayName: data.displayName || newUsers[existingIndex].displayName,
+        displayName: data.displayName ?? newUsers[existingIndex].displayName,
       };
       this.users = newUsers;
       this.emitContactsUpdate();
-    } else if (this.currentUser && data.userId === this.currentUser.id) {
+    } else if (this.currentUser?.id === data.userId) {
       // MULTI-TAB SYNC: Update current user if it was us on another tab
       this.currentUser = {
         ...this.currentUser,
         status: data.status,
-        displayName: data.displayName || this.currentUser.displayName,
+        displayName: data.displayName ?? this.currentUser.displayName,
       };
       this.emitCurrentUserUpdate();
     }
@@ -478,14 +509,14 @@ class RealMessengerService implements IMessengerService {
 
   // --- Presence ---
 
-  async setPresence(
+  setPresence(
     _userId: string,
     status: PresenceStatus,
     displayName?: string,
   ): Promise<void> {
     // 1. Send to Global Presence WebSocket pattern (Hibernation API)
     const ws = this.sessions.get("global_presence");
-    if (ws && ws.readyState === WebSocket.OPEN) {
+    if (ws?.readyState === WebSocket.OPEN) {
       ws.send(
         JSON.stringify({
           type: "presence_update",
@@ -518,10 +549,11 @@ class RealMessengerService implements IMessengerService {
       this.currentUser = {
         ...this.currentUser,
         status,
-        displayName: displayName || this.currentUser.displayName,
+        displayName: displayName ?? this.currentUser.displayName,
       };
       this.emitContactsUpdate();
     }
+    return Promise.resolve();
   }
 
   getAvatarUrl(avatarId: string): string {
@@ -533,7 +565,7 @@ class RealMessengerService implements IMessengerService {
     this.stopPinging(roomId);
     const interval = setInterval(() => {
       const ws = this.sessions.get(roomId);
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      if (ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "ping" }));
       } else {
         this.stopPinging(roomId);

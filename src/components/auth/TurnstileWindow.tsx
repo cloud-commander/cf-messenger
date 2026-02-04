@@ -89,6 +89,8 @@ export function TurnstileWindow() {
     };
   }, []);
 
+  const [error, setError] = useState<string | null>(null);
+
   // Render Widget
   useEffect(() => {
     if (!isSdkLoaded) return;
@@ -102,32 +104,43 @@ export function TurnstileWindow() {
         // Fetch dynamic config
         const configRes = await fetch("/api/config");
         const config = (await configRes.json()) as {
-          TURNSTILE_SITE_KEY: string;
+          TURNSTILE_SITE_KEY?: string;
         };
-        const sitekey = config.TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+        const sitekey = config.TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
+        console.log("[Turnstile] Using sitekey:", sitekey);
 
         if (window.turnstile && containerRef.current) {
-          const id = window.turnstile.render(containerRef.current, {
-            sitekey,
-            callback: (_token: string) => {
-              console.log("[Turnstile] Token received");
-              setTimeout(() => {
-                setTurnstileToken(_token);
-                closeWindow("turnstile-verification");
-              }, 1000);
-            },
-            "error-callback": () => {
-              console.error("[Turnstile] Widget error callback");
-            },
-            "expired-callback": () => {
-              console.warn("[Turnstile] Token expired");
-            },
-          });
-          widgetIdRef.current = id;
-          console.log("[Turnstile] Rendered with ID:", id);
+          const ts = window.turnstile;
+          // Add a small delay to ensure DOM is ready and visible
+          setTimeout(() => {
+            if (!containerRef.current || widgetIdRef.current) return;
+
+            const id = ts.render(containerRef.current, {
+              sitekey,
+              callback: (_token: string) => {
+                console.log("[Turnstile] Token received");
+                setError(null);
+                setTimeout(() => {
+                  setTurnstileToken(_token);
+                  closeWindow("turnstile-verification");
+                }, 1000);
+              },
+              "error-callback": (code?: string) => {
+                console.error("[Turnstile] Widget error callback, code:", code);
+                setError(code ?? "Verification failed to load");
+              },
+              "expired-callback": () => {
+                console.warn("[Turnstile] Token expired");
+                setError("Token expired, please try again");
+              },
+            });
+            widgetIdRef.current = id;
+            console.log("[Turnstile] Rendered with ID:", id);
+          }, 200);
         }
       } catch (err) {
         console.error("[Turnstile] Render failed", err);
+        setError("Network error loading security check");
       }
     };
 
@@ -168,8 +181,22 @@ export function TurnstileWindow() {
         <p className="text-msn-sm text-center max-w-[250px] mb-2">
           Please complete the security check to continue signing in.
         </p>
-        <div className="min-h-[65px] flex items-center justify-center">
+        <div className="min-h-[65px] flex flex-col items-center justify-center">
           <div ref={containerRef} />
+          {error && (
+            <div className="text-red-600 text-[10px] mt-2 text-center bg-red-50 p-1 border border-red-200">
+              Error: {error}
+              <br />
+              <button
+                className="mt-1 underline text-blue-600 hover:text-blue-800"
+                onClick={() => {
+                  window.location.reload();
+                }}
+              >
+                Reload Page
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,0 +1,4 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com 'unsafe-inline' 'unsafe-eval' blob:; frame-src * about:; connect-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com blob:; img-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com data:; child-src 'self' https://challenges.cloudflare.com https://*.cloudflare.com blob: about:; style-src 'self' 'unsafe-inline';
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

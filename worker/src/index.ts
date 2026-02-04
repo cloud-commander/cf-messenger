@@ -15,6 +15,7 @@ export interface Env {
   AI: Ai;
   TURNSTILE_SECRET_KEY: string;
   TURNSTILE_SITE_KEY: string;
+  ASSETS: Fetcher;
 }
 
 export default {
@@ -361,6 +362,21 @@ export default {
         url.searchParams.set("displayName", session.user.displayName);
 
         return stub.fetch(new Request(url.toString(), request));
+      }
+
+      // Fallback: Static Assets with CSP
+      const assetResponse = await env.ASSETS.fetch(request);
+      if (assetResponse.ok || assetResponse.status === 304) {
+        // Clone response to add security headers to the asset
+        const newHeaders = new Headers(assetResponse.headers);
+        Object.entries(corsHeaders).forEach(([k, v]) => {
+          newHeaders.set(k, v);
+        });
+        return new Response(assetResponse.body, {
+          status: assetResponse.status,
+          statusText: assetResponse.statusText,
+          headers: newHeaders,
+        });
       }
 
       return new Response("Not Found", { status: 404 });

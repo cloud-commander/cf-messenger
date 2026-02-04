@@ -292,6 +292,7 @@ export function InternetExplorer({ windowId, onClose }: InternetExplorerProps) {
             onLoad={handleIframeLoad}
             className="w-full h-full border-none"
             title="Content"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
           />
         </div>
 
