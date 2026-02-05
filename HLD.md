@@ -33,13 +33,13 @@ This document doubles as an audit. Every architectural claim includes evidence. 
 
 ### 2.1 Legacy Lessons (1999–2012)
 
-MSN-era chat (MSNP) relied on a rigid, tiered centralized architecture:
+MSN-era chat (MSNP) relied on a rigid, tiered centralised architecture:
 
 - **Dispatch Servers (DS):** Acted as initial entry points and load balancers, redirecting clients to an available Notification Server.
 - **Notification Servers (NS):** Managed persistent connections for presence updates, contact list synchronization, and session orchestration.
 - **Switchboard Servers (SB):** Dedicated relays that hosted specific chat sessions and facilitated file transfers (P2P or relayed).
 
-Each idle connection consumed RAM and stateful TCP sockets, requiring manual capacity planning for "peak hours." Latency hinged on client distance from regional datacenters, and scaling was a vertical bottleneck—simply buying more physical iron. Every message relay through a Switchboard added a centralized point of failure.
+Each idle connection consumed RAM and stateful TCP sockets, requiring manual capacity planning for "peak hours." Latency hinged on client distance from regional data centres, and scaling was a vertical bottleneck—simply buying more physical iron. Every message relay through a Switchboard added a centralised point of failure.
 
 ### 2.2 Cloud 1.0 (2010–2023)
 
@@ -55,7 +55,7 @@ Most modern chat apps run on regional infrastructure (e.g., EC2/Kubernetes + Red
 
 CF Messenger flips the model by adopting an **"Edge Mesh"** architecture where compute and state coexist at the point of entry.
 
-- **Isolate-Native State (Durable Objects):** Unlike Cloud 1.0, where state is pushed to a remote Redis cluster, CF Messenger uses Durable Objects to keep room state (active users, last 100 messages) in the same physical datacenter as the connected users.
+- **Isolate-Native State (Durable Objects):** Unlike Cloud 1.0, where state is pushed to a remote Redis cluster, CF Messenger uses Durable Objects to keep room state (active users, last 100 messages) in the same physical data centre as the connected users.
 - **Global Mesh Routing:** Cloudflare’s backbone handles the routing between isolates. Messages never traverse the public internet or "central" regions; they move across a private global mesh, minimizing jitter and packet loss.
 - **Hibernation-First Architecture:** By using the Hibernation API, Durable Objects can "sleep" while preserving the WebSocket connection. This shifts the cost model from _billing for idle time_ to _billing only for active compute_.
 - **Zero Cold-Starts:** V8 isolates spin up in milliseconds using pre-warmed snapshots. A user clicking "Login" triggers a worker that is ready before the TLS handshake even completes.
@@ -183,7 +183,7 @@ Every payload is JSON and validated via Zod.
 
 - `NudgeHandler`: Rate-limited per user (3 per 10s).
 - `TypingHandler`: Emits a forced `typing:false` after TTL to clear stale UI indicators.
-- `WinkHandler`: Combines timestamps + `winkId` hashes to synchronize playback across clients.
+- `WinkHandler`: Combines timestamps + `winkId` hashes to synchronise playback across clients.
 
 Every handler returns Zod-validation failures before they reach durable state to prevent schema drift and injection.
 
@@ -206,7 +206,7 @@ Bots embody deterministic personas. Character definitions include vocabulary, pu
 
 ## 7. Security & Infrastructure Blueprint
 
-### 7.1 Defense in Depth
+### 7.1 Defence in Depth
 
 1. **Session Tokens:** Randomly generated UUIDv4 tokens stored in `SESSION_KV` with 5-minute TTLs. Validated against user identity on every WebSocket connection.
    - _Note: HMAC-SHA256 was planned but replaced by KV-backed UUIDs for simpler revocation in this POC._
@@ -220,7 +220,7 @@ Bots embody deterministic personas. Character definitions include vocabulary, pu
 
 - Client clock skew beyond ±30s requires manual refresh; automated revalidation is on the backlog.
 - Predictable room names remain a challenge. The next iteration will add per-room nonces stored in DO state.
-- KV’s eventual consistency can nudge counters above limits (10+ messages/min) during edge fan-out; a centralized counter is on the roadmap. _Source: [KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/)_
+- KV’s eventual consistency can nudge counters above limits (10+ messages/min) during edge fan-out; a centralised counter is on the roadmap. _Source: [KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/)_
 
 **Intentional exclusions:**
 
@@ -250,7 +250,7 @@ To protect multiple applications across subdomains (e.g., `messenger.cfdemo.link
 #### A. WAF Custom Rules (Security > WAF > Custom Rules)
 
 1.  **Zone-Wide Login Protection**
-    - **Goal:** Block non-browser/unauthorized login attempts across ALL subdomains.
+    - **Goal:** Block non-browser/unauthorised login attempts across ALL subdomains.
     - **Expression:** `(http.request.uri.path eq "/api/auth/login" and http.request.method eq "POST" and not http.referer contains "cfdemo.link")`
     - **Action:** `Block` or `Managed Challenge`
     - _Significance: By checking for `cfdemo.link` in the referer, this rule allows legitimate logins from any of your subdomains while blocking direct bot attacks._
@@ -297,7 +297,7 @@ Cloudflare’s Hibernation API releases the isolate while keeping session metada
 
 ### 8.2 Data Residency & Compliance (UK-only)
 
-All DOs and KV are pinned to the UK via `location_hint` and `kv_namespaces` bound to UK data centers.
+All DOs and KV are pinned to the UK via `location_hint` and `kv_namespaces` bound to UK data centres.
 
 ```jsonc
 "durable_objects": {
@@ -408,7 +408,7 @@ By adhering to the `/api/` path structure, a single set of WAF rules protects th
 
 ## 13. Observability & Analytics
 
-CF Messenger utilizes a dual-layered analytics approach to monitor both browser-level performance and server-side business logic within the Cloudflare Free Tier.
+CF Messenger utilises a dual-layered analytics approach to monitor both browser-level performance and server-side business logic within the Cloudflare Free Tier.
 
 ### 13.1 Frontend: Cloudflare Web Analytics
 
@@ -441,7 +441,7 @@ CF Messenger is intentionally a **demo** that highlights Cloudflare edge primiti
 
 **Key takeaways:**
 
-1. The architecture excels at low-latency, global WebSockets with no centralized signaling.
+1. The architecture excels at low-latency, global WebSockets with no centralised signaling.
 2. Durability, compliance, and observability are known gaps; stakeholders must accept the listed limitations before citing CF Messenger as a reference.
 3. Production readiness demands durability persistence, hardened security, compliance automation, and observability runbooks (Section 11).
 

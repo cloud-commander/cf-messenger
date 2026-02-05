@@ -13,7 +13,7 @@ CF Messenger is a real-time communication platform that recreates the nostalgic 
 - **Real-time Chat**: Bi-directional messaging powered by Cloudflare Durable Objects and WebSockets.
 - **Classic UI**: Faithful recreation of the Windows Live Messenger interface using `xp.css` and custom themes.
 - **AI Bots**: Interactive AI contacts (powered by Llama 3.2 via Workers AI) with built-in cost controls.
-- **Global Presence**: Real-time "Online/Away/Busy" status tracking across all active sessions using a specialized DO.
+- **Global Presence**: Real-time "Online/Away/Busy" status tracking across all active sessions using a specialised DO.
 - **Production Hardened**:
   - **Turnstile Security**: Bot-proof login and registration.
   - **Rate Limiting**: Throttling for both human and AI interactions to prevent abuse and bill shock.
@@ -27,7 +27,7 @@ CF Messenger is a real-time communication platform that recreates the nostalgic 
 ### Frontend
 
 - **Framework**: [React 19](https://react.dev/) + [Vite 7](https://vitejs.dev/)
-- **State**: [Zustand](https://github.com/pmndrs/zustand) with optimized render batching.
+- **State**: [Zustand](https://github.com/pmndrs/zustand) with optimised render batching.
 - **Styling**: [xp.css](https://botoxparty.github.io/XP.css/) + Vanilla CSS.
 
 ### Backend (Cloudflare Edge)
