@@ -1,10 +1,5 @@
-# CF Messenger
-
-> **A classic Messenger inspired proof of concept using modern edge technologies.**
-
-CF Messenger is a real-time communication platform that recreates the nostalgic Windows Messenger experience using cutting-edge Cloudflare technologies. It is built to be "Edge-native," leveraging Durable Objects for high-performance stateful messaging, WebSockets for instant communication, and Cloudflare Workers for a serverless, global backend.
-
-![CF Messenger Screenshot](https://spirit-assets.pages.dev/og-image.png)
+![CF Messenger Screenshot](https://github.com/cloud-commander/cf-messenger/blob/master/Screenshot1.png)
+![CF Messenger Screenshot](https://github.com/cloud-commander/cf-messenger/blob/master/Screenshot2.png)
 
 ---
 

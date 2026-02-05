@@ -1,8 +1,8 @@
 # CF Messenger: High-Level Design + Critical Audit
 
 **Date:** 28 Jan 2026
-**Version:** 3.0 (Edge Assurance Review)
-**Audience:** Product Management, Founders, and Architecture Review Board
+
+**Keywords:** `Cloudflare Workers`, `Durable Objects`, `WebSockets`, `Workers AI`, `Workers Analytics Engine`, `KV`, `Turnstile`, `Web Analytics`, `Edge Computing`, `MSN Messenger`, `Real-time Chat`
 
 ---
 
@@ -75,8 +75,6 @@ This evolution represents a shift from **managing infrastructure** to **composin
 
 ### 2.5 Why CF Mesh? (Competitor Comparison)
 
-While other "Cloud 2.0" serverless options exist, they often re-introduce the "Operational Glue" we aim to avoid.
-
 | Feature                | AWS Lambda + Firecracker / API Gateway      | Azure Durable Functions + Web PubSub        | GCP Cloud Run                                  | Cloudflare Durable Objects (CF Messenger)        |
 | :--------------------- | :------------------------------------------ | :------------------------------------------ | :--------------------------------------------- | :----------------------------------------------- |
 | **State Primitive**    | Stateless (Requires external DynamoDB) [^1] | Workflow Orchestration (Azure Storage) [^2] | Process-based (Ephemeral)                      | **Native persistence (Strongly Consistent)**     |
@@ -104,7 +102,7 @@ AWS Firecracker provides robust hardware-level isolation but incurs higher cold-
 
 [^6]: [GCP Cloud Run WebSocket Billing](https://cloud.google.com/run/docs/configuring/services/websockets#billing)
 
-[^7]: [Durable Objects Hibernation API](https://blog.cloudflare.com/durable-objects-websocket-hibernation/)
+[^7]: [Durable Objects WebSocket Hibernation](https://blog.cloudflare.com/durable-objects-websocket-hibernation/)
 
 ---
 
