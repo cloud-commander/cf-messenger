@@ -6,10 +6,7 @@ import { messengerService } from "../../services/messengerService";
 import type { PresenceStatus, User } from "../../types";
 import { AdBanner } from "./AdBanner";
 import { getDmRoomId } from "../../utils/chat";
-
-interface ContactListProps {
-  onLogout: () => void;
-}
+import { APP_CONFIG } from "../../config/appConfig";
 
 // Helper for UI grouping logic (Pure view logic)
 const useContactGroups = (contacts: User[], currentUserId?: string) => {
@@ -31,9 +28,7 @@ const useContactGroups = (contacts: User[], currentUserId?: string) => {
   }, [contacts, currentUserId]);
 };
 
-import { APP_CONFIG } from "../../config/appConfig";
-
-export function ContactList({ onLogout }: ContactListProps) {
+export function ContactList() {
   const { playSound } = useSound();
   const currentUser = useChatStore((state) => state.currentUser);
 
@@ -50,6 +45,7 @@ export function ContactList({ onLogout }: ContactListProps) {
       void fetchContacts(true);
     }
   }, [currentUser, rooms.length, fetchContacts]);
+
   const openChat = useChatStore((state) => state.openChat);
   const setStatus = useChatStore((state) => state.setStatus);
   const isLoading = useChatStore((state) => state.isLoading);
@@ -58,7 +54,7 @@ export function ContactList({ onLogout }: ContactListProps) {
   const minimizeWindow = useWindowStore((state) => state.minimizeWindow);
   const toggleMaximize = useWindowStore((state) => state.toggleMaximize);
   const isWindowMaximized = useWindowStore((state) => state.isWindowMaximized);
-  const setActiveWindow = useWindowStore((state) => state.setActiveWindow); // Added
+  const setActiveWindow = useWindowStore((state) => state.setActiveWindow);
 
   const isMaximized = isWindowMaximized("contact-list");
 
@@ -76,7 +72,7 @@ export function ContactList({ onLogout }: ContactListProps) {
 
   // UI State
   const [isOnlineExpanded, setIsOnlineExpanded] = useState(true);
-  const [isOfflineExpanded, setIsOfflineExpanded] = useState(true); // Default to true for debugging
+  const [isOfflineExpanded, setIsOfflineExpanded] = useState(true);
   const [isAiExpanded, setIsAiExpanded] = useState(true);
   const [isRoomsExpanded, setIsRoomsExpanded] = useState(true);
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
@@ -107,7 +103,6 @@ export function ContactList({ onLogout }: ContactListProps) {
   };
 
   const handleMessageSubmit = () => {
-    // Ideally update via store/service
     setIsEditingMessage(false);
   };
 
@@ -154,13 +149,14 @@ export function ContactList({ onLogout }: ContactListProps) {
             onMouseDown={(e) => {
               e.stopPropagation();
             }}
-            onClick={onLogout}
+            onClick={() => {
+              minimizeWindow("contact-list");
+            }}
           ></button>
         </div>
       </div>
 
       <div className="window-body flex-1 flex flex-col m-1 p-0 overflow-hidden bg-white border border-xp-border-silver">
-        {/* Header Area */}
         <div className="bg-msn-light-blue p-3 flex gap-3 border-b border-xp-border-silver">
           <img
             src={myAvatarUrl}
@@ -175,7 +171,9 @@ export function ContactList({ onLogout }: ContactListProps) {
                   type="text"
                   className="font-bold text-msn-base text-[#444] border border-gray-400 px-1 py-0 w-full outline-none"
                   value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
+                  onChange={(e) => {
+                    setTempName(e.target.value);
+                  }}
                   onBlur={handleNameSubmit}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleNameSubmit();
@@ -239,14 +237,12 @@ export function ContactList({ onLogout }: ContactListProps) {
                         away: "bg-yellow-400 border-yellow-600",
                         offline: "bg-gray-400 border-gray-600",
                       };
-
                       const labels = {
                         online: "Online",
                         busy: "Busy",
                         away: "Away",
                         offline: "Appear Offline",
                       };
-
                       return (
                         <li key={s}>
                           <button
@@ -269,6 +265,25 @@ export function ContactList({ onLogout }: ContactListProps) {
                         </li>
                       );
                     })}
+                    <li className="border-t border-[#A0C4E3] mt-1 pt-1 opacity-50 px-2 text-[10px] text-gray-500 italic">
+                      Account
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        className="btn-reset-accessible w-full text-left px-2 py-1.5 text-sm flex items-center gap-2 transition-colors hover:bg-red-600 hover:text-white text-black cursor-pointer group"
+                        onClick={() => {
+                          useChatStore.getState().logout();
+                        }}
+                      >
+                        <div className="w-4 flex justify-center">
+                          <span className="text-red-500 group-hover:text-white transition-colors">
+                            ⏻
+                          </span>
+                        </div>
+                        <span className="font-bold">Sign Out</span>
+                      </button>
+                    </li>
                   </ul>
                 )}
               </div>
@@ -306,7 +321,6 @@ export function ContactList({ onLogout }: ContactListProps) {
           </div>
         </div>
 
-        {/* Contact List */}
         <div className="flex-1 overflow-y-auto bg-white p-2">
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-2 py-1 mb-2 text-xs">
@@ -319,7 +333,6 @@ export function ContactList({ onLogout }: ContactListProps) {
             </div>
           )}
 
-          {/* AI Assistants Group */}
           <div className="mb-2">
             <div
               role="button"
@@ -354,9 +367,7 @@ export function ContactList({ onLogout }: ContactListProps) {
                     key={bot.id}
                     className="flex items-center gap-2 px-1 py-0.5 hover:bg-[#EBF3FA] cursor-pointer"
                     onClick={() => {
-                      if (currentUser) {
-                        handleOpenChat(getDmRoomId(currentUser.id, bot.id));
-                      }
+                      handleOpenChat(getDmRoomId(currentUser.id, bot.id));
                     }}
                   >
                     <img
@@ -380,7 +391,6 @@ export function ContactList({ onLogout }: ContactListProps) {
             )}
           </div>
 
-          {/* Chat Rooms Group */}
           <div className="mb-2">
             <div
               role="button"
@@ -434,7 +444,6 @@ export function ContactList({ onLogout }: ContactListProps) {
             )}
           </div>
 
-          {/* Online Humans Group */}
           <div className="mb-2">
             <div
               role="button"
@@ -469,9 +478,7 @@ export function ContactList({ onLogout }: ContactListProps) {
                     key={contact.id}
                     className="flex items-center gap-2 p-1 hover:bg-[#EFEFEF] cursor-pointer"
                     onDoubleClick={() => {
-                      if (currentUser) {
-                        handleOpenChat(getDmRoomId(currentUser.id, contact.id));
-                      }
+                      handleOpenChat(getDmRoomId(currentUser.id, contact.id));
                     }}
                   >
                     <img
@@ -495,7 +502,6 @@ export function ContactList({ onLogout }: ContactListProps) {
             )}
           </div>
 
-          {/* Offline Humans Group */}
           <div>
             <div
               role="button"
@@ -530,9 +536,7 @@ export function ContactList({ onLogout }: ContactListProps) {
                     key={contact.id}
                     className="flex items-center gap-2 px-1 py-0.5 hover:bg-[#EBF3FA] cursor-pointer opacity-60"
                     onClick={() => {
-                      if (currentUser) {
-                        handleOpenChat(getDmRoomId(currentUser.id, contact.id));
-                      }
+                      handleOpenChat(getDmRoomId(currentUser.id, contact.id));
                     }}
                   >
                     <img
@@ -550,7 +554,6 @@ export function ContactList({ onLogout }: ContactListProps) {
           </div>
         </div>
 
-        {/* Footer Advertisement */}
         <div className="bg-msn-bg p-1 border-t border-xp-border-silver flex-none">
           <AdBanner />
         </div>

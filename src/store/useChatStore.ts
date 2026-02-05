@@ -158,7 +158,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!turnstileToken) throw new Error("Missing Turnstile Token");
       await messengerService.login(user.id, turnstileToken);
       messengerService.connectGlobalPresence();
-      set({ currentUser: user });
+      set({ currentUser: user, turnstileToken: null });
       get().initializeListeners();
       await get().fetchContacts(true);
     } catch (err) {
@@ -167,7 +167,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   logout: () => {
-    set({ currentUser: null, openChatIds: [], _listenersInitialized: false });
+    void messengerService.logout();
+    set({
+      currentUser: null,
+      openChatIds: [],
+      _listenersInitialized: false,
+      turnstileToken: null,
+    });
   },
 
   fetchContacts: async (silent = false) => {

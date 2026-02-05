@@ -16,7 +16,16 @@ export function jsonResponse(
   status = 200,
   extraHeaders: Record<string, string> = {},
 ): Response {
-  return new Response(JSON.stringify(data), {
+  const envelope = {
+    success: status >= 200 && status < 300,
+    data,
+    meta: {
+      timestamp: Date.now(),
+      requestId: crypto.randomUUID(),
+    },
+  };
+
+  return new Response(JSON.stringify(envelope), {
     status,
     headers: {
       "Content-Type": "application/json",
@@ -26,6 +35,28 @@ export function jsonResponse(
   });
 }
 
-export function errorResponse(message: string, status = 400): Response {
-  return jsonResponse({ error: message }, status);
+export function errorResponse(
+  message: string,
+  status = 400,
+  code = "ERROR",
+): Response {
+  const envelope = {
+    success: false,
+    error: {
+      code,
+      message,
+    },
+    meta: {
+      timestamp: Date.now(),
+      requestId: crypto.randomUUID(),
+    },
+  };
+
+  return new Response(JSON.stringify(envelope), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      ...corsHeaders,
+    },
+  });
 }

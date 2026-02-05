@@ -104,9 +104,11 @@ export function TurnstileWindow() {
         // Fetch dynamic config
         const configRes = await fetch("/api/config");
         const config = (await configRes.json()) as {
-          TURNSTILE_SITE_KEY?: string;
+          success: boolean;
+          data?: { TURNSTILE_SITE_KEY?: string };
         };
-        const sitekey = config.TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
+        const sitekey =
+          config.data?.TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
         console.log("[Turnstile] Using sitekey:", sitekey);
 
         if (window.turnstile && containerRef.current) {

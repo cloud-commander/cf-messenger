@@ -86,8 +86,8 @@ export class BotService implements IBotService {
         return;
       }
 
-      const GLOBAL_LIMIT = 5000; // 5k total per day
-      const USER_LIMIT = 50; // 50 per user per day
+      const GLOBAL_LIMIT = 4000;
+      const USER_LIMIT = 50;
 
       // Optimistic Reads
       const [globalStr, userStr] = await Promise.all([

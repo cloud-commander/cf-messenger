@@ -12,7 +12,6 @@ export function WindowLayer() {
   const currentUser = useChatStore((state) => state.currentUser);
   const openChatIds = useChatStore((state) => state.openChatIds);
   const login = useChatStore((state) => state.login);
-  const logout = useChatStore((state) => state.logout);
   const closeChat = useChatStore((state) => state.closeChat);
 
   const openWindows = useWindowStore((state) => state.openWindows);
@@ -113,7 +112,7 @@ export function WindowLayer() {
             defaultPosition={{ x: 50, y: 50 }}
             className="w-[300px] h-[580px]"
           >
-            <ContactList onLogout={logout} />
+            <ContactList />
           </DraggableWindow>
         )}
 

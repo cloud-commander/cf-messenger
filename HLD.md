@@ -245,43 +245,45 @@ Durable Object separation simplifies concurrency but increases cross-actor messa
 
 ---
 
-### 7.3 Cloudflare Dashboard Rules (Free/Workers Tier)
+### 7.3 Cloudflare Dashboard Rules (Wildcard Subdomain Configuration)
 
-To harden the API without incurring enterprise costs, apply the following rules directly in the Cloudflare Dashboard. These are compatible with the Free tier.
+To protect multiple applications across subdomains (e.g., `messenger.cfdemo.link`, `app1.cfdemo.link`) that share a common API structure, apply these zone-wide rules. This configuration maximizes the **Cloudflare Free tier** (10 Custom Rules, 1 Rate Limit Rule).
 
 #### A. WAF Custom Rules (Security > WAF > Custom Rules)
 
-1.  **Block Direct Login API Access**
-    - **Goal:** Prevent bots from hitting the login endpoint directly without passing through the frontend.
-    - **Expression:** `(http.request.uri.path eq "/api/auth/login" and http.request.method eq "POST" and not http.referer contains "cf-messenger")`
+1.  **Zone-Wide Login Protection**
+    - **Goal:** Block non-browser/unauthorized login attempts across ALL subdomains.
+    - **Expression:** `(http.request.uri.path eq "/api/auth/login" and http.request.method eq "POST" and not http.referer contains "cfdemo.link")`
     - **Action:** `Block` or `Managed Challenge`
-    - _Note: This is a weak check (referer can be spoofed) but filters lazy bots._
+    - _Significance: By checking for `cfdemo.link` in the referer, this rule allows legitimate logins from any of your subdomains while blocking direct bot attacks._
 
-2.  **Protect Internal/System Rooms**
-    - **Goal:** Prevent public access to system-level rooms if any exist.
-    - **Expression:** `(http.request.uri.path contains "/api/room/system_" or http.request.uri.path contains "/api/room/admin_")`
+2.  **Universal API Guard**
+    - **Goal:** Block access to system/admin endpoints across the entire zone.
+    - **Expression:** `(http.request.uri.path contains "/api/ws/room/system_" or http.request.uri.path contains "/api/ws/room/admin_")`
+    - **Action:** `Block`
+
+3.  **Global Hygiene (Shared)**
+    - **Goal:** Block automated scanners for all subdomains.
+    - **Expression:** `(http.user_agent contains "curl" or http.user_agent contains "python" or http.user_agent contains "Go-http-client")`
     - **Action:** `Block`
 
 #### B. Rate Limiting Rules (Security > WAF > Rate Limiting)
 
-_Note: Free tier allows 1 basic rate limiting rule._
+_Note: You have **1 rule** for the whole zone. Since your apps share an API structure, a single rule protects them all simultaneously._
 
-1.  **Login Abuse Prevention**
-    - **Goal:** Stop brute-force or spam login attempts.
+1.  **Multi-App Throttling**
+    - **Goal:** Prevent brute-force logins on ALL subdomains.
     - **Expression:** `(http.request.uri.path eq "/api/auth/login" and http.request.method eq "POST")`
     - **Characteristics:** Same IP
     - **Period:** 10 Seconds
     - **Requests:** 5
     - **Action:** `Block` for 1 Minute
+    - _Note: This rule applies globally to any subdomain matching the path, effectively protecting your entire ecosystem with one slot._
 
-#### C. Bot Fight Mode (Security > Bots)
+#### C. Bot Fight Mode & Turnstile
 
-- Enable **Bot Fight Mode** (Free). This automatically challenges requests that match known bot patterns (Headless Chrome, unusual user agents) before they reach the Worker.
-
-#### D. Turnstile (Security > Turnstile)
-
-- Ensure the Widget Mode is set to **"Managed"** (recommended) or **"Non-interactive"** to challenge suspicious traffic while passing humans automatically.
-- **Do not** use "Invisible" mode if you want the visual Windows XP "Loading..." aesthetic to be authentic. _Source: [Turnstile Widget Modes](https://developers.cloudflare.com/turnstile/concepts/widget-modes/)_
+- **Bot Fight Mode:** Enable (Security > Bots). This runs before custom rules and blocks known head-less browsers zone-wide.
+- **Turnstile Managed Challenge:** Create a single Turnstile widget for `*.cfdemo.link`. This allows you to use the same security validation across all your subdomains seamlessly.
 
 ---
 
@@ -331,7 +333,7 @@ Until these exist, refer to CF Messenger strictly as a demo; the UK lock prevent
 ## 10. Known Limitations & Failure Modes
 
 1. **Message Durability (Improved):** ChatRoom DOs now flush to disk every **1 second**. While this drastically reduces data loss risk for demos, it is not "ACID compliance." A crash can still lose <1s of data.
-2. **Session Expiry UX (Medium):** Tokens expire at 5 minutes. Without auto-refresh modals, users may disconnect abruptly.
+2. **Session Expiry UX (Medium):** Tokens expire at 20 minutes (for inclusive "fat" buffer). Without auto-refresh modals, users may disconnect abruptly.
 3. **Rate Limit Drift (Medium):** DO counters reset on reroutes. KV mirrors reduce the drift but do not guarantee absolute enforcement.
 4. **Bot Quota Races (Low):** KV-based daily counters are eventually consistent. For a 30-user POC, this risk is negligible.
 5. **DO Migration Loss (Medium):** Deploying new class definitions clears buffers unless data is persisted off-isolate.
@@ -350,6 +352,88 @@ Until these exist, refer to CF Messenger strictly as a demo; the UK lock prevent
 3. **Compliance:** Automate EU/UK data residency, provide deletion API, enforce retention, enable audit logging via Logpush, and publish GDPR notices.
 4. **Offline Delivery:** Use Cloudflare Queues + acknowledgements to retry messages when clients reconnect.
 5. **Observability & Runbooks:** Stream logs, alert on DO evictions or quota breaches, and maintain incident management playbooks.
+
+---
+
+## 12. Standard Edge API Specification (v1.0)
+
+This section defines the unified API structure for all applications on the `*.cfdemo.link` zone. AI agents should use this as the master blueprint for cross-app consistency and WAF compatibility.
+
+### 12.1 Request/Response Envelope
+
+All endpoints MUST use a consistent JSON structure to facilitate automated parsing:
+
+```typescript
+type ApiResponse<T> = {
+  success: boolean;
+  data?: T;
+  error?: { code: string; message: string };
+  meta: { timestamp: number; requestId: string };
+};
+```
+
+### 12.2 Endpoint Hierarchy
+
+Standardized paths enable zone-wide WAF rules to protect multiple applications simultaneously while accommodating diverse app types (E-commerce, Gaming, Tools).
+
+| Endpoint Root           | Method          | Use Case                                   | Primary Storage |
+| :---------------------- | :-------------- | :----------------------------------------- | :-------------- |
+| `/api/auth/login`       | `POST`          | Turnstile-gated session creation           | KV              |
+| `/api/auth/me`          | `GET`           | Session validation/Profile fetch           | KV/D1           |
+| `/api/data/:collection` | `GET/POST`      | Relational CRUD (Orders, Users, Items)     | D1              |
+| `/api/ws/room/:id`      | `GET (Upgrade)` | Real-time synchronization (Carts, Lobbies) | Durable Object  |
+| `/api/ws/presence`      | `GET (Upgrade)` | Real-time global presence tracking         | Durable Object  |
+
+### 12.3 Provisioning Checklist (Multi-Purpose)
+
+When creating any new application (e.g., `shop.cfdemo.link`, `game.cfdemo.link`), the following resource patterns ensure security and AI-readiness:
+
+1.  **D1 Relational Guard**:
+    - Use for persistent records (e.g., `ORDERS`, `INVENTORY`).
+    - Prefix tables with app namespace: `SHOP_ORDERS`, `GAME_SCORES`.
+2.  **KV Session Guard**:
+    - Use for transient tokens and high-frequency preference reads.
+    - Mandatory `expirationTtl: 1200` (20 mins).
+3.  **Durable Object Synchronization**:
+    - Use for **Atomic Multi-User State** (e.g., a shared whiteboard, a real-time leaderboard, or a collaborative editor).
+    - WebSocket handlers MUST use `ctx.acceptWebSocket(server)` (Hibernation API) to minimize idle-compute billing.
+    - Rate limits MUST be enforced at the entry point of the `webSocketMessage` handler.
+
+### 12.4 Integrated WAF Shield (Shared Rule Slots)
+
+By adhering to the `/api/` path structure, a single set of WAF rules protects the entire zone:
+
+- **Custom Rule**: Challenge all POSTs to `/api/` lacking a `cfdemo.link` referer.
+- **Rate Limit**: Hard cap of 10 requests/min for any endpoint matching `*/api/auth/login`.
+
+---
+
+## 13. Observability & Analytics
+
+CF Messenger utilizes a dual-layered analytics approach to monitor both browser-level performance and server-side business logic within the Cloudflare Free Tier.
+
+### 13.1 Frontend: Cloudflare Web Analytics
+
+Privacy-first, cookie-less tracking of Real User Monitoring (RUM) metrics.
+
+- **Implementation**: A lightweight JavaScript beacon injected into `index.html`.
+- **Metrics**: Page views, visit counts, referrers, and Core Web Vitals (LCP, FID, CLS).
+- **Security**: Operates without collecting PII or utilizing browser fingerprinting.
+
+### 13.2 Backend: Workers Analytics Engine
+
+High-cardinality, time-series logging of custom application events.
+
+- **Provider**: Cloudflare Workers Analytics Engine (Beta).
+- **Free Tier Cap**: 100,000 data points written per day / 10,000 read queries per day.
+- **Instrumented Events**:
+  - `login_success`: Tracks successful authentication per user.
+  - `message_sent`: (Planned) Volume of chat activity per room.
+  - `ai_invocation`: (Planned) Bot interaction frequency for quota management.
+
+### 13.3 Configuration
+
+The system is configured in `wrangler.jsonc` via the `analytics_engine_datasets` binding. This allows for seamless SQL-based querying of application health and usage directly from the Cloudflare Dashboard.
 
 ---
 

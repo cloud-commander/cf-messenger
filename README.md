@@ -162,42 +162,58 @@ wrangler kv key put --binding CF_MESSENGER_SESSIONS "config:bot_enabled" "true"
 - **Human**: 15 messages/minute (configurable in `ChatRoom.ts`).
 - **Bots**: 50 messages/day/user (configurable in `BotService.ts`).
 
-### Cloudflare WAF (Free Tier) Setup
+### Cloudflare Analytics (Free Tier)
+
+This project uses a dual-layered analytics setup to monitor performance and usage without compromising privacy.
+
+1.  **Web Analytics (Frontend)**:
+    - **Required Action**: Open `index.html` and replace `"YOUR_TOKEN_HERE"` with your site token from the **Cloudflare Dashboard > Analytics & Logs > Web Analytics**.
+    - _Metrics_: Page views, visit counts, and Core Web Vitals.
+
+2.  **Workers Analytics Engine (Backend)**:
+    - **Setup**: Automatically configured in `wrangler.jsonc`. No manual token required.
+    - **Event Tracking**: Logs critical events like `login_success`.
+    - **Querying**: View data points in the **Cloudflare Dashboard > Workers & Pages > cf-messenger-api > Analytics**.
+
+### Cloudflare WAF (Wildcard/Multi-App) Setup
 
 > [!NOTE]
-> WAF rules on the Free Plan are **per Zone (Apex Domain)**. All subdomains share the same limit (5 Custom Rules, 1 Rate Limit Rule).
+> WAF rules on the Free Plan are **per Zone (Apex Domain)**. If you have multiple applications on subdomains (e.g., `messenger.cfdemo.link`, `app1.cfdemo.link`), they all share the same protective rules if you use the patterns below.
 
-To protect your quota and security on the free plan, apply these rules in the Cloudflare Dashboard > Security > WAF:
+To protect your entire ecosystem on the free plan, apply these rules in the Cloudflare Dashboard > Security > WAF:
 
 1.  **Bot Fight Mode**:
     - Go to **Security > Bots** and enable **Bot Fight Mode**.
-    - _Why:_ Blocks automated scrapers and bad bots for free.
+    - _Why:_ Automatically challenges automated scrapers across all subdomains.
 
 2.  **Rate Limiting Rule (1 Free Rule)**:
-    - **Rule Name**: `Protect Login`
+    - **Rule Name**: `Universal Login Protection`
     - **Expression**: `(http.request.uri.path eq "/api/auth/login" and http.request.method eq "POST")`
     - **Action**: `Block` (or `Managed Challenge`)
     - **Rate**: 10 requests / 1 minute / IP
-    - _Why:_ Prevents brute-force session creation attacks.
+    - _Why:_ Protects the login endpoint for ALL your applications at once since they share the same API structure.
 
-3.  **Custom Rules (Max 5 Free)**:
-    - **Rule 1 - Geo-Block (Optional)**:
-      - Expression: `(ip.geoip.country ne "GB" and ip.geoip.country ne "US")` (Customize for your region)
+3.  **Custom Rules (Max 10 Free)**:
+    - **Rule 1 - Zone-Wide Login Guard**:
+      - Expression: `(http.request.uri.path eq "/api/auth/login" and not http.referer contains "cfdemo.link")`
       - Action: `Managed Challenge`
+      - _Why:_ Blocks direct API attacks while allowing users from any of your `cfdemo.link` subdomains to log in.
     - **Rule 2 - Block Suspicious User Agents**:
       - Expression: `(http.user_agent contains "curl" or http.user_agent contains "python")`
       - Action: `Block`
+      - _Why:_ Global hygiene for all your subdomains.
 
 ---
 
 ## 📜 Environment Reference
 
-| Variable                  | Scope    | Description                                                      |
-| :------------------------ | :------- | :--------------------------------------------------------------- |
-| `VITE_TURNSTILE_SITE_KEY` | Frontend | Public key for the Turnstile widget.                             |
-| `TURNSTILE_SECRET_KEY`    | Backend  | Secret key for server-side verification.                         |
-| `AI_API_BASE`             | Backend  | URL for local AI proxy (leave empty in prod).                    |
-| `AI_MODEL`                | Backend  | Cloudflare AI model ID (e.g., `@cf/meta/llama-3.2-1b-instruct`). |
+| Variable                  | Scope    | Description                                                        |
+| :------------------------ | :------- | :----------------------------------------------------------------- |
+| `VITE_TURNSTILE_SITE_KEY` | Frontend | Public key for the Turnstile widget.                               |
+| `TURNSTILE_SECRET_KEY`    | Backend  | Secret key for server-side verification.                           |
+| `AI_API_BASE`             | Backend  | URL for local AI proxy (leave empty in prod).                      |
+| `AI_MODEL`                | Backend  | Cloudflare AI model ID (e.g., `@cf/meta/llama-3.2-1b-instruct`).   |
+| `AE`                      | Backend  | Workers Analytics Engine binding (configured in `wrangler.jsonc`). |
 
 ---
 

@@ -8,14 +8,17 @@
     "directory": "./dist",
     "binding": "ASSETS",
   },
-  "observability": {
-    "enabled": true,
-  },
   "kv_namespaces": [
     {
       "binding": "CF_MESSENGER_SESSIONS",
       "id": "d2cede18d4b444b7986f535f9497ff6b",
       "preview_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    },
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "AE",
+      "dataset": "MESSENGER_EVENTS_DEV",
     },
   ],
   "durable_objects": {
@@ -43,6 +46,9 @@
     "AI_API_BASE": "http://127.0.0.1:1234/v1",
     "AI_MODEL": "@cf/meta/llama-3.2-1b-instruct",
   },
+  "observability": {
+    "enabled": true,
+  },
   "env": {
     "production": {
       "name": "cf-messenger-prod",
@@ -50,6 +56,12 @@
         {
           "binding": "CF_MESSENGER_SESSIONS",
           "id": "d2cede18d4b444b7986f535f9497ff6b",
+        },
+      ],
+      "analytics_engine_datasets": [
+        {
+          "binding": "AE",
+          "dataset": "MESSENGER_EVENTS_PROD",
         },
       ],
       "durable_objects": {
@@ -71,6 +83,12 @@
         "AI_API_BASE": "",
         "AI_MODEL": "@cf/meta/llama-3.2-1b-instruct",
       },
+      "routes": [
+        {
+          "pattern": "messenger.cfdemo.link",
+          "custom_domain": true,
+        },
+      ],
     },
   },
 }

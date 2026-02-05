@@ -17,7 +17,10 @@ const MessageSchema = z.object({
     "system",
     "participants",
     "history",
-  ]), // Added participants/history which were missing in backend schema but present here
+    "delivery_status",
+    "ack",
+    "ping",
+  ]),
   content: z.string().optional(),
   id: z.string().optional(),
   roomId: z.string().optional(),
@@ -25,8 +28,9 @@ const MessageSchema = z.object({
   displayName: z.string().optional(),
   status: z.enum(["sent", "delivered", "read"]).optional(),
   ackId: z.string().optional(),
-  participants: z.array(z.any()).optional(), // Loose for now
-  messages: z.array(z.any()).optional(), // Loose for now
+  participants: z.array(z.any()).optional(),
+  messages: z.array(z.any()).optional(),
+  timestamp: z.number().optional(),
 });
 
 export interface IMessengerService {
@@ -40,9 +44,21 @@ export interface IMessengerService {
     senderId: string,
   ): Promise<Message>;
   sendAck(roomId: string, ackId: string, status: "delivered" | "read"): void;
-  setPresence(userId: string, status: PresenceStatus): Promise<void>;
+  setPresence(
+    userId: string,
+    status: PresenceStatus,
+    displayName?: string,
+  ): Promise<void>;
   getUser(userId: string): Promise<User | undefined>;
   getAvatarUrl(avatarId: string): string;
+  logout(): Promise<void>;
+}
+
+interface PresenceUpdatePayload {
+  userId: string;
+  status: PresenceStatus;
+  displayName?: string;
+  type?: string;
 }
 
 class RealMessengerService implements IMessengerService {
@@ -52,15 +68,11 @@ class RealMessengerService implements IMessengerService {
 
   private sessions: Map<string, WebSocket> = new Map<string, WebSocket>();
   private reconnectAttempts: Map<string, number> = new Map<string, number>();
-  private isConnecting: Map<string, boolean> = new Map<string, boolean>(); // Prevent double triggers
+  private isConnecting: Map<string, boolean> = new Map<string, boolean>();
 
-  // Cache messages per room
   private messageCache: Map<string, Message[]> = new Map<string, Message[]>();
-
-  // Heartbeat intervals
   private pingIntervals: Map<string, number> = new Map<string, number>();
 
-  // Listeners
   private messageListeners: ((roomId: string, message: Message) => void)[] = [];
   private contactsListeners: ((contacts: User[]) => void)[] = [];
   private currentUserListeners: ((user: User) => void)[] = [];
@@ -79,67 +91,62 @@ class RealMessengerService implements IMessengerService {
       headers,
     });
 
-    if (!res.ok) {
-      throw new Error(`API Error ${String(res.status)}: ${res.statusText}`);
-    }
-    const json: unknown = await res.json();
-    return json as T;
-  }
+    const json = (await res.json()) as {
+      success: boolean;
+      data?: T;
+      error?: { code: string; message: string };
+    };
 
-  // --- Auth & Session ---
+    if (!json.success || !res.ok) {
+      throw new Error(
+        json.error?.message ??
+          `API Error ${String(res.status)}: ${res.statusText}`,
+      );
+    }
+    return json.data as T;
+  }
 
   async getCurrentUser(): Promise<User> {
     if (this.currentUser) return this.currentUser;
 
     try {
-      // 1. Try to get current session
-      const session = await this.fetchApi<AuthSession>("/auth/me");
-      this.currentUser = session.user;
-      this.sessionId = session.sessionId;
-      return this.currentUser;
-    } catch (e) {
-      console.warn("No active session, attempting dev login as user_1", e);
-      // 2. Dev Fallback: Login as user_1
-      return this.login("user_1", "dev_token");
+      this.sessionId ??= localStorage.getItem("cf-messenger-session");
+      if (!this.sessionId) throw new Error("No persisted session found");
+
+      const user = await this.fetchApi<User>("/auth/me");
+      this.currentUser = user;
+      this.emitCurrentUserUpdate();
+      return user;
+    } catch (e: unknown) {
+      localStorage.removeItem("cf-messenger-session");
+      this.sessionId = null;
+      throw e;
     }
   }
 
-  async login(userId: string, turnstileToken: string): Promise<User> {
+  async login(userId: string, token: string): Promise<User> {
     const session = await this.fetchApi<AuthSession>("/auth/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, token: turnstileToken }),
+      body: JSON.stringify({ userId, token }),
     });
-    this.currentUser = session.user;
+
     this.sessionId = session.sessionId;
-
-    const currentId = this.currentUser.id;
-    this.users = this.users.filter((u) => u.id !== currentId);
-    this.emitContactsUpdate();
-
-    return this.currentUser;
+    this.currentUser = session.user;
+    localStorage.setItem("cf-messenger-session", this.sessionId);
+    this.emitCurrentUserUpdate();
+    return session.user;
   }
 
-  // --- Contacts ---
-
   async getContacts(): Promise<User[]> {
-    // We do not force getCurrentUser() here anymore.
-    // The Login Screen needs to call this to get the list of users *before* anyone is logged in.
-    // Requiring currentUser here causes a 401 loop/delay on initial load.
-
-    // Ensure Global Presence is connected
-    this.connectGlobalPresence();
-
     try {
-      const accounts = await this.fetchApi<User[]>("/auth/accounts");
-
-      this.users = this.currentUser
-        ? accounts.filter((u) => u.id !== this.currentUser?.id)
+      const accounts = await this.fetchApi<User[]>("/users");
+      const currentId = this.currentUser?.id;
+      this.users = currentId
+        ? accounts.filter((u) => u.id !== currentId)
         : accounts;
-
       this.emitContactsUpdate();
       return this.users;
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Failed to fetch contacts", e);
       throw e;
     }
@@ -155,7 +162,9 @@ class RealMessengerService implements IMessengerService {
     if (this.users.length > 0) {
       listener(this.users);
     } else {
-      this.getContacts().catch(console.error);
+      this.getContacts().catch((err: unknown) => {
+        console.error(err);
+      });
     }
   }
 
@@ -167,30 +176,28 @@ class RealMessengerService implements IMessengerService {
 
   public onCurrentUserUpdated(listener: (user: User) => void) {
     this.currentUserListeners.push(listener);
+    if (this.currentUser) {
+      listener(this.currentUser);
+    }
   }
 
   private emitCurrentUserUpdate() {
     if (this.currentUser) {
+      const user = this.currentUser;
       this.currentUserListeners.forEach((l) => {
-        if (this.currentUser) {
-          l(this.currentUser);
-        }
+        l(user);
       });
     }
   }
 
-  // --- Rooms ---
-
   async getRooms(): Promise<Room[]> {
     try {
       return await this.fetchApi<Room[]>("/rooms");
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Failed to fetch rooms", e);
       return [];
     }
   }
-
-  // --- Messaging ---
 
   public connectWebSocket(roomId = "general") {
     if (this.sessions.has(roomId)) {
@@ -202,7 +209,7 @@ class RealMessengerService implements IMessengerService {
         return;
     }
 
-    if (this.isConnecting.get(roomId)) return; // Lock
+    if (this.isConnecting.get(roomId)) return;
     this.isConnecting.set(roomId, true);
 
     if (!this.currentUser || !this.sessionId) {
@@ -211,31 +218,25 @@ class RealMessengerService implements IMessengerService {
     }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/api/room/${roomId}/websocket?sessionId=${this.sessionId}&userId=${this.currentUser.id}&displayName=${encodeURIComponent(this.currentUser.displayName)}`;
+    const wsUrl = `${protocol}//${window.location.host}/api/ws/room/${roomId}?sessionId=${this.sessionId}&userId=${this.currentUser.id}&displayName=${encodeURIComponent(this.currentUser.displayName)}`;
 
     const ws = new WebSocket(wsUrl);
     this.sessions.set(roomId, ws);
 
     ws.onopen = () => {
       console.log(`[MSN] Connected to room: ${roomId}`);
-      this.reconnectAttempts.set(roomId, 0); // Reset retries on success
+      this.reconnectAttempts.set(roomId, 0);
       this.isConnecting.set(roomId, false);
-
-      // Start pinging
       this.startPinging(roomId);
     };
 
     ws.onmessage = (event) => {
       try {
-        const raw = JSON.parse(event.data as string) as unknown;
-        // Validate
+        const raw = JSON.parse(event.data as string) as Record<string, unknown>;
         const result = MessageSchema.safeParse(raw);
-        if (!result.success) {
-          console.warn("[MSN] Received invalid message payload", result.error);
-          return;
-        }
-        this.handleWebSocketMessage(roomId, result.data);
-      } catch (err) {
+        if (!result.success) return;
+        this.handleWebSocketMessage(roomId, result.data as Message);
+      } catch (err: unknown) {
         console.error("Failed to parse WS message", err);
       }
     };
@@ -244,40 +245,22 @@ class RealMessengerService implements IMessengerService {
       this.stopPinging(roomId);
       this.isConnecting.set(roomId, false);
       const attempts = this.reconnectAttempts.get(roomId) ?? 0;
-
-      // Calculate Backoff: min(30s, 1s * 2^attempts) + Jitter
-      const baseDelay = Math.min(30000, 1000 * Math.pow(2, attempts));
-      const jitter = Math.random() * 1000;
-      const delay = baseDelay + jitter;
-
-      console.log(
-        `[MSN] Disconnected from ${roomId}. Reconnecting in ${String(Math.round(delay))}ms... (Attempt ${String(attempts + 1)})`,
-      );
-
+      const delay =
+        Math.min(30000, 1000 * Math.pow(2, attempts)) + Math.random() * 1000;
       this.reconnectAttempts.set(roomId, attempts + 1);
-
       setTimeout(() => {
         this.connectWebSocket(roomId);
       }, delay);
     };
   }
 
-  private handleWebSocketMessage(
-    roomId: string,
-    data: Message | Record<string, unknown>,
-  ) {
-    // Determine type safely
-    const msgType = (data as { type: string }).type;
-    if (
-      msgType === "history" &&
-      "messages" in data &&
-      Array.isArray(data.messages)
-    ) {
-      const msgs = (data.messages as Message[])
+  private handleWebSocketMessage(roomId: string, msg: Message) {
+    if (msg.type === "history" && msg.messages) {
+      const msgs: Message[] = msg.messages
         .filter((m) => m.type === "chat" || m.type === "system")
         .map((m) => ({
           ...m,
-          timestamp: m.timestamp || Date.now(),
+          timestamp: m.timestamp,
         }));
       this.messageCache.set(roomId, msgs);
       msgs.forEach((m) => {
@@ -287,20 +270,15 @@ class RealMessengerService implements IMessengerService {
     }
 
     if (
-      msgType === "chat" ||
-      msgType === "typing" ||
-      msgType === "system" ||
-      msgType === "participants" ||
-      msgType === "delivery_status" ||
-      msgType === "nudge"
+      msg.type === "chat" ||
+      msg.type === "typing" ||
+      msg.type === "system" ||
+      msg.type === "participants" ||
+      msg.type === "delivery_status" ||
+      msg.type === "nudge"
     ) {
-      const msg = data as Message;
-      // Ensure timestamp exists for proper sorting
-      if (!msg.timestamp) {
-        msg.timestamp = Date.now();
-      }
-      const targetRoomId = msg.roomId || roomId;
-
+      if (!msg.timestamp) msg.timestamp = Date.now();
+      const targetRoomId = msg.roomId;
       if (msg.type === "chat") {
         const current = this.messageCache.get(targetRoomId) ?? [];
         if (!current.find((m) => m.id === msg.id)) {
@@ -308,7 +286,6 @@ class RealMessengerService implements IMessengerService {
           this.messageCache.set(targetRoomId, current);
         }
       }
-
       this.emitMessageUpdate(targetRoomId, msg);
     }
   }
@@ -319,25 +296,16 @@ class RealMessengerService implements IMessengerService {
     senderId: string,
   ): Promise<Message> {
     let ws = this.sessions.get(roomId);
-
-    // If no session exists or not open, try to connect and wait
     if (ws?.readyState !== WebSocket.OPEN) {
       this.connectWebSocket(roomId);
-      try {
-        await this.waitForConnection(roomId);
-        ws = this.sessions.get(roomId); // Refresh after wait
-      } catch {
-        throw new Error(`Failed to connect to room: ${roomId}`);
-      }
+      await this.waitForConnection(roomId);
+      ws = this.sessions.get(roomId);
     }
+    if (ws?.readyState !== WebSocket.OPEN)
+      throw new Error("No active connection");
 
-    if (ws?.readyState !== WebSocket.OPEN) {
-      throw new Error(`No active connection to room: ${roomId}`);
-    }
-
-    const tempId = `temp_${String(Date.now())}`;
     const msg: Message = {
-      id: tempId,
+      id: `temp_${String(Date.now())}`,
       roomId,
       senderId,
       content,
@@ -364,17 +332,14 @@ class RealMessengerService implements IMessengerService {
   ): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      const ws = this.sessions.get(roomId);
-      if (ws?.readyState === WebSocket.OPEN) {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      const currentWs = this.sessions.get(roomId);
+      if (currentWs?.readyState === WebSocket.OPEN) return;
+      await new Promise((r) => setTimeout(r, 100));
     }
-    throw new Error(`Connection timeout for room ${roomId}`);
+    throw new Error("Connection timeout");
   }
 
   getMessages(roomId: string): Promise<Message[]> {
-    // If not connected, connect
     this.connectWebSocket(roomId);
     return Promise.resolve(this.messageCache.get(roomId) ?? []);
   }
@@ -391,65 +356,74 @@ class RealMessengerService implements IMessengerService {
     });
   }
 
-  // --- Global Presence ---
-
   public connectGlobalPresence() {
-    if (this.sessions.has("global_presence")) return;
-
-    if (!this.currentUser || !this.sessionId) return;
+    if (
+      this.sessions.has("global_presence") ||
+      !this.currentUser ||
+      !this.sessionId
+    )
+      return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/api/global-presence/websocket?sessionId=${this.sessionId}&userId=${this.currentUser.id}&displayName=${encodeURIComponent(this.currentUser.displayName)}`;
+    const wsUrl = `${protocol}//${window.location.host}/api/ws/presence?sessionId=${this.sessionId}&userId=${this.currentUser.id}&displayName=${encodeURIComponent(this.currentUser.displayName)}`;
 
     const ws = new WebSocket(wsUrl);
     this.sessions.set("global_presence", ws);
 
     ws.onopen = () => {
-      console.log("[MSN] Connected to Global Presence");
       this.reconnectAttempts.set("global_presence", 0);
       this.startPinging("global_presence");
     };
 
     ws.onmessage = (event) => {
       try {
-        const raw = JSON.parse(event.data as string) as Record<string, unknown>;
-        if (raw.type === "presence_update" || raw.type === "presence_join") {
-          const updateData: {
+        const raw = JSON.parse(
+          event.data as string,
+        ) as PresenceUpdatePayload & {
+          participants?: {
+            id: string;
+            status: PresenceStatus;
+            displayName: string;
+          }[];
+          message?: Message;
+        };
+        if (
+          raw.type &&
+          ["presence_update", "presence_join"].includes(raw.type)
+        ) {
+          const update: {
             userId: string;
             status: PresenceStatus;
             displayName?: string;
           } = {
-            userId: raw.userId as string,
-            status: (raw.status as PresenceStatus) || "online", // Join implies online
+            userId: raw.userId,
+            status: (raw.status as PresenceStatus | undefined) ?? "online",
           };
-          if (raw.displayName) {
-            updateData.displayName = raw.displayName as string;
+          if (raw.displayName !== undefined) {
+            update.displayName = raw.displayName;
           }
-          this.handlePresenceUpdate(updateData);
-        } else if (raw.type === "presence_full_sync") {
-          if (Array.isArray(raw.participants)) {
-            raw.participants.forEach(
-              (p: {
-                id: string;
-                status: PresenceStatus;
-                displayName: string;
-              }) => {
-                this.handlePresenceUpdate({
-                  userId: p.id,
-                  status: p.status,
-                  displayName: p.displayName,
-                });
-              },
-            );
-          }
+          this.handlePresenceUpdate(update);
+        } else if (
+          raw.type === "presence_full_sync" &&
+          Array.isArray(raw.participants)
+        ) {
+          raw.participants.forEach(
+            (p: {
+              id: string;
+              status: PresenceStatus;
+              displayName: string;
+            }) => {
+              this.handlePresenceUpdate({
+                userId: p.id,
+                status: p.status,
+                displayName: p.displayName,
+              });
+            },
+          );
         } else if (raw.type === "message_notification" && raw.message) {
-          const msg = raw.message as Message;
-          // Ensure timestamp exists for proper sorting (especially for AI bot messages)
-          if (!msg.timestamp) {
-            msg.timestamp = Date.now();
-          }
-          const targetRoomId = msg.roomId || "general";
-          // Update cache to ensure sync
+          const msg = raw.message;
+          if (!msg.timestamp) msg.timestamp = Date.now();
+          const targetRoomId = (msg.roomId as string | undefined) ?? "general";
           const current = this.messageCache.get(targetRoomId) ?? [];
           if (!current.find((m) => m.id === msg.id)) {
             current.push(msg);
@@ -457,8 +431,8 @@ class RealMessengerService implements IMessengerService {
           }
           this.emitMessageUpdate(targetRoomId, msg);
         }
-      } catch (err) {
-        console.error("Failed to parse Global Presence message", err);
+      } catch (err: unknown) {
+        console.error("Presence sync error", err);
       }
     };
 
@@ -467,12 +441,7 @@ class RealMessengerService implements IMessengerService {
       this.sessions.delete("global_presence");
       const attempts = this.reconnectAttempts.get("global_presence") ?? 0;
       const delay = Math.min(30000, 1000 * Math.pow(2, attempts));
-
-      console.log(
-        `[MSN] Global Presence disconnected. Reconnecting in ${String(delay)}ms...`,
-      );
       this.reconnectAttempts.set("global_presence", attempts + 1);
-
       setTimeout(() => {
         this.connectGlobalPresence();
       }, delay);
@@ -484,20 +453,17 @@ class RealMessengerService implements IMessengerService {
     status: PresenceStatus;
     displayName?: string;
   }) {
-    // Update local cache
-    const existingIndex = this.users.findIndex((u) => u.id === data.userId);
-    if (existingIndex !== -1) {
-      // Create new array reference for React/Zustand reactivity
+    const idx = this.users.findIndex((u) => u.id === data.userId);
+    if (idx !== -1) {
       const newUsers = [...this.users];
-      newUsers[existingIndex] = {
-        ...newUsers[existingIndex],
+      newUsers[idx] = {
+        ...newUsers[idx],
         status: data.status,
-        displayName: data.displayName ?? newUsers[existingIndex].displayName,
+        displayName: data.displayName ?? newUsers[idx].displayName,
       };
       this.users = newUsers;
       this.emitContactsUpdate();
     } else if (this.currentUser?.id === data.userId) {
-      // MULTI-TAB SYNC: Update current user if it was us on another tab
       this.currentUser = {
         ...this.currentUser,
         status: data.status,
@@ -507,14 +473,35 @@ class RealMessengerService implements IMessengerService {
     }
   }
 
-  // --- Presence ---
+  async logout(): Promise<void> {
+    try {
+      if (this.sessionId) {
+        await this.fetchApi("/auth/logout", { method: "POST" });
+      }
+    } catch (e: unknown) {
+      console.warn("Logout failed", e);
+    } finally {
+      this.currentUser = null;
+      this.sessionId = null;
+      localStorage.removeItem("cf-messenger-session");
+      this.sessions.forEach((ws) => {
+        ws.close();
+      });
+      this.sessions.clear();
+      this.reconnectAttempts.clear();
+      this.pingIntervals.forEach((interval) => {
+        clearInterval(interval);
+      });
+      this.pingIntervals.clear();
+    }
+  }
 
-  setPresence(
+  async setPresence(
     _userId: string,
     status: PresenceStatus,
     displayName?: string,
   ): Promise<void> {
-    // 1. Send to Global Presence WebSocket pattern (Hibernation API)
+    await Promise.resolve(); // satisfying async rule
     const ws = this.sessions.get("global_presence");
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(
@@ -526,14 +513,15 @@ class RealMessengerService implements IMessengerService {
         }),
       );
     } else {
-      // Fallback or ensure connected
       this.connectGlobalPresence();
     }
 
-    // 2. Also broadcast to active chat rooms (Legacy support / Immediate feedback)
-    this.sessions.forEach((ws, key) => {
-      if (key !== "global_presence" && ws.readyState === WebSocket.OPEN) {
-        ws.send(
+    this.sessions.forEach((wsInstance, key) => {
+      if (
+        key !== "global_presence" &&
+        wsInstance.readyState === WebSocket.OPEN
+      ) {
+        wsInstance.send(
           JSON.stringify({
             type: "presence",
             status,
@@ -544,7 +532,6 @@ class RealMessengerService implements IMessengerService {
       }
     });
 
-    // 3. Update local user state
     if (this.currentUser) {
       this.currentUser = {
         ...this.currentUser,
@@ -553,7 +540,6 @@ class RealMessengerService implements IMessengerService {
       };
       this.emitContactsUpdate();
     }
-    return Promise.resolve();
   }
 
   getAvatarUrl(avatarId: string): string {
@@ -570,7 +556,7 @@ class RealMessengerService implements IMessengerService {
       } else {
         this.stopPinging(roomId);
       }
-    }, 30000) as unknown as number; // 30s heartbeats
+    }, 30000) as unknown as number;
     this.pingIntervals.set(roomId, interval);
   }
 
