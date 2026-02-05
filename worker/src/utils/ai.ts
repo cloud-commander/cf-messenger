@@ -81,7 +81,7 @@ export async function generateAiResponse(
         { role: "user", content: userMessage },
       ],
       temperature: 0.8,
-      max_tokens: 150,
+      max_tokens: 120,
     };
 
     try {

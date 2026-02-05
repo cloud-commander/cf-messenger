@@ -1,6 +1,6 @@
-# 🕊️ CF Messenger
+# CF Messenger
 
-> **A high-fidelity Windows Live Messenger clone built for the modern edge.**
+> **A classic Messenger inspired proof of concept using modern edge technologies.**
 
 CF Messenger is a real-time communication platform that recreates the nostalgic Windows Messenger experience using cutting-edge Cloudflare technologies. It is built to be "Edge-native," leveraging Durable Objects for high-performance stateful messaging, WebSockets for instant communication, and Cloudflare Workers for a serverless, global backend.
 
@@ -8,7 +8,7 @@ CF Messenger is a real-time communication platform that recreates the nostalgic 
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 - **Real-time Chat**: Bi-directional messaging powered by Cloudflare Durable Objects and WebSockets.
 - **Classic UI**: Faithful recreation of the Windows Live Messenger interface using `xp.css` and custom themes.
@@ -22,7 +22,7 @@ CF Messenger is a real-time communication platform that recreates the nostalgic 
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 
@@ -39,7 +39,7 @@ CF Messenger is a real-time communication platform that recreates the nostalgic 
 
 ---
 
-## 💻 Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 
@@ -92,7 +92,7 @@ CF Messenger is a real-time communication platform that recreates the nostalgic 
 
 ---
 
-## 🚀 Production Deployment
+## Production Deployment
 
 ### 1. Backend & Frontend (Unified)
 
@@ -143,7 +143,7 @@ wrangler secret put TURNSTILE_SECRET_KEY --env production
 
 ---
 
-## 🛡️ Operational Maintenance
+## Operational Maintenance
 
 ### AI Cost Controls (Circuit Breakers)
 
@@ -205,7 +205,7 @@ To protect your entire ecosystem on the free plan, apply these rules in the Clou
 
 ---
 
-## 📜 Environment Reference
+## Environment Reference
 
 | Variable                  | Scope    | Description                                                        |
 | :------------------------ | :------- | :----------------------------------------------------------------- |
@@ -217,7 +217,7 @@ To protect your entire ecosystem on the free plan, apply these rules in the Clou
 
 ---
 
-## 🎖️ Credits & Inspiration
+## Credits & Inspiration
 
 - **[XP.css](https://botoxparty.github.io/XP.css/)** for the aesthetic.
 - **[Spirit Messenger](https://spirit-messenger.vercel.app/)** for the initial spark.
