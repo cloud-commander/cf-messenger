@@ -1,5 +1,10 @@
-![CF Messenger Screenshot](https://github.com/cloud-commander/cf-messenger/blob/master/Screenshot1.png)
-![CF Messenger Screenshot](https://github.com/cloud-commander/cf-messenger/blob/master/Screenshot2.png)
+# CF Messenger
+
+> **A classic Messenger inspired proof of concept using modern edge technologies.**
+
+**[Live Demo: messenger.cfdemo.link](https://messenger.cfdemo.link)**
+
+CF Messenger is a real-time communication platform that recreates the nostalgic Windows Messenger experience using cutting-edge Cloudflare technologies. It is built to be "Edge-native," leveraging Durable Objects for high-performance stateful messaging, WebSockets for instant communication, and Cloudflare Workers for a serverless, global backend.
 
 ---
 
@@ -185,7 +190,7 @@ To protect your entire ecosystem on the free plan, apply these rules in the Clou
     - **Rule Name**: `Universal Login Protection`
     - **Expression**: `(http.request.uri.path eq "/api/auth/login" and http.request.method eq "POST")`
     - **Action**: `Block` (or `Managed Challenge`)
-    - **Rate**: 10 requests / 1 minute / IP
+    - **Rate**: 5 requests / 10 seconds / IP
     - _Why:_ Protects the login endpoint for ALL your applications at once since they share the same API structure.
 
 3.  **Custom Rules (Max 10 Free)**:
@@ -209,6 +214,11 @@ To protect your entire ecosystem on the free plan, apply these rules in the Clou
 | `AI_API_BASE`             | Backend  | URL for local AI proxy (leave empty in prod).                      |
 | `AI_MODEL`                | Backend  | Cloudflare AI model ID (e.g., `@cf/meta/llama-3.2-1b-instruct`).   |
 | `AE`                      | Backend  | Workers Analytics Engine binding (configured in `wrangler.jsonc`). |
+
+---
+
+![CF Messenger Screenshot](https://github.com/cloud-commander/cf-messenger/blob/master/Screenshot1.png)
+![CF Messenger Screenshot](https://github.com/cloud-commander/cf-messenger/blob/master/Screenshot2.png)
 
 ---
 
